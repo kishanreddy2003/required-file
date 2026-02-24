@@ -1,0 +1,185 @@
+Inter Service Failure Handle using Resilience4j circuit breaker
+===============================================================
+You have:
+
+Property Service
+
+Booking Service
+
+Payment Service
+
+And Booking Service calls Property Service before creating booking.
+
+Now we’ll implement Service-to-Service Circuit Breaker using Resilience4j inside Booking Service.
+
+✅ Short Interview Answer
+
+To implement service-level circuit breaker, we configure Resilience4j in Booking Service, apply @CircuitBreaker on the method calling Property Service (via Feign/WebClient), and define a fallback method to handle failures gracefully.
+
+This prevents cascading failure if Property Service is down.
+
+STEP 1: Add Dependencies (Booking Service)
+==========================================
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
+</dependency>
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+
+Configure Circuit Breaker in application.yml (Booking Service)
+===============================================================
+## ===============================
+## RESILIENCE4J CONFIGURATION
+## ===============================
+resilience4j.circuitbreaker.instances.propertyServiceCB.slidingWindowSize=10
+resilience4j.circuitbreaker.instances.propertyServiceCB.minimumNumberOfCalls=5
+resilience4j.circuitbreaker.instances.propertyServiceCB.permittedNumberOfCallsInHalfOpenState=3
+resilience4j.circuitbreaker.instances.propertyServiceCB.waitDurationInOpenState=10s
+resilience4j.circuitbreaker.instances.propertyServiceCB.failureRateThreshold=50
+
+#This for Actuator
+#===================
+management.endpoints.web.exposure.include=health,info
+management.endpoint.health.show-details=always
+
+or
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      propertyServiceCB:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        waitDurationInOpenState: 10s
+        failureRateThreshold: 50
+
+Apply Circuit Breaker in Service Layer
+=======================================
+@Service
+@RequiredArgsConstructor
+public class BookingService {
+
+    private final PropertyClient propertyClient;
+
+    @CircuitBreaker(name = "propertyServiceCB", fallbackMethod = "propertyFallback")
+    public BookingResponse createBooking(Long propertyId, BookingRequest request) {
+
+        // Call property service
+        PropertyDto property = propertyClient.getPropertyById(propertyId);
+
+        if(property == null) {
+            throw new RuntimeException("Property not available");
+        }
+
+        // continue booking logic
+        return new BookingResponse("Booking Created Successfully");
+    }
+
+    // Fallback Method
+    public BookingResponse propertyFallback(Long propertyId,
+                                            BookingRequest request,
+                                            Throwable ex) {
+
+        return new BookingResponse(
+            "Property Service is temporarily unavailable. Please try later."
+        );
+    }
+}
+
+If Property Service Fails:
+
+5 minimum calls monitored
+
+If 50% fail
+
+Circuit goes OPEN
+
+Further calls directly go to fallback
+
+After 10 seconds → HALF OPEN
+
+
+Fallback method must:
+
+Have same parameters as original method
+
+Add Throwable as last parameter
+
+Have same return type
+
+Otherwise Resilience4j throws NoSuchMethodException
+
+
+Even Better (Industry Best Practice)
+====================================
+Add Retry + Timeout:
+
+resilience4j.retry.instances.bookingServiceRetry.maxAttempts=3
+resilience4j.retry.instances.bookingServiceRetry.waitDuration=2s
+
+resilience4j.timelimiter.instances.bookingServiceCB.timeoutDuration=3s
+
+Then:
+
+@Retry(name = "bookingServiceRetry")
+@CircuitBreaker(name = "bookingServiceCB", fallbackMethod = "bookingFallback")
+
+Now:
+
+Retry 3 times
+
+If still fails → Circuit opens
+
+Future calls fail immediately
+
+After 10s → Half-open trial
+
+That is REAL production-level design.
+
+
+
+🥈 OPTION 2 (Enterprise Way)
+===========================================================
+
+👉 Remove @CircuitBreaker annotation
+👉 Use Feign fallback instead
+
+Modify Feign:
+
+@FeignClient(
+    name = "BOOKING-SERVICE",
+    url = "http://localhost:8082/api/v1/booking",
+    fallbackFactory = BookingClientFallbackFactory.class
+)
+
+Create fallbackFactory:
+
+@Component
+public class BookingClientFallbackFactory implements FallbackFactory<BookingClient> {
+
+    @Override
+    public BookingClient create(Throwable cause) {
+        return new BookingClient() {
+            @Override
+            public Bookings getBookingsById(long bookingId) {
+                Bookings b = new Bookings();
+                b.setTotalPrice(0L);
+                return b;
+            }
+
+            @Override
+            public void bookings(Bookings bookings) {}
+        };
+    }
+}
+
+And REMOVE:
+
+@CircuitBreaker
+
+

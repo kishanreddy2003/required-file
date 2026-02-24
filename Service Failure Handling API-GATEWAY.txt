@@ -1,0 +1,181 @@
+Service Failure Handling API-GATE way level
+============================================
+
+STEP-1:
+======
+<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
+		</dependency>
+
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
+
+
+STEP-1:Add application.property
+--------------------------------
+spring.application.name=api-gateway
+
+server.port=5555
+
+management.endpoints.web.exposure.include=health,metrics,circuitbreakers
+management.endpoint.health.show-details=always
+
+# ===============================
+# PROPERTY SERVICE ROUTE
+# ===============================
+spring.cloud.gateway.server.webflux.routes[0].id=property-service-api
+spring.cloud.gateway.server.webflux.routes[0].uri=lb://PROPERTY-SERVICE
+spring.cloud.gateway.server.webflux.routes[0].predicates[0]=Path=/property/**
+spring.cloud.gateway.server.webflux.routes[0].filters[0]=RewritePath=/property/(?<segment>.*), /${segment}
+# Filter 2 → Circuit Breaker
+spring.cloud.gateway.server.webflux.routes[0].filters[1].name=CircuitBreaker
+spring.cloud.gateway.server.webflux.routes[0].filters[1].args.name=propertyCircuitBreaker
+spring.cloud.gateway.server.webflux.routes[0].filters[1].args.fallbackUri=forward:/fallback/property
+# ===============================
+# RESILIENCE4J CIRCUIT BREAKER
+# ===============================
+resilience4j.circuitbreaker.instances.propertyCircuitBreaker.registerHealthIndicator=true
+resilience4j.circuitbreaker.instances.propertyCircuitBreaker.slidingWindowType=COUNT_BASED
+resilience4j.circuitbreaker.instances.propertyCircuitBreaker.slidingWindowSize=20
+resilience4j.circuitbreaker.instances.propertyCircuitBreaker.minimumNumberOfCalls=10
+resilience4j.circuitbreaker.instances.propertyCircuitBreaker.failureRateThreshold=50
+resilience4j.circuitbreaker.instances.propertyCircuitBreaker.waitDurationInOpenState=20s
+resilience4j.circuitbreaker.instances.propertyCircuitBreaker.permittedNumberOfCallsInHalfOpenState=5
+resilience4j.circuitbreaker.instances.propertyCircuitBreaker.automaticTransitionFromOpenToHalfOpenEnabled=true
+resilience4j.circuitbreaker.instances.propertyCircuitBreaker.eventConsumerBufferSize=10
+
+
+# ===============================
+# BOOKING SERVICE ROUTE
+# ===============================
+spring.cloud.gateway.server.webflux.routes[1].id=booking-service-api
+spring.cloud.gateway.server.webflux.routes[1].uri=lb://BOOKING-SERVICE
+spring.cloud.gateway.server.webflux.routes[1].predicates[0]=Path=/booking/**
+# Filter 1 → Rewrite Path
+spring.cloud.gateway.server.webflux.routes[1].filters[0]=RewritePath=/booking/(?<segment>.*), /${segment}
+
+# Filter 2 → Circuit Breaker
+spring.cloud.gateway.server.webflux.routes[1].filters[1].name=CircuitBreaker
+spring.cloud.gateway.server.webflux.routes[1].filters[1].args.name=bookingCircuitBreaker
+spring.cloud.gateway.server.webflux.routes[1].filters[1].args.fallbackUri=forward:/fallback/booking
+# ===============================
+# RESILIENCE4J CIRCUIT BREAKER
+# ===============================
+resilience4j.circuitbreaker.instances.bookingCircuitBreaker.registerHealthIndicator=true
+resilience4j.circuitbreaker.instances.bookingCircuitBreaker.slidingWindowType=COUNT_BASED
+resilience4j.circuitbreaker.instances.bookingCircuitBreaker.slidingWindowSize=20
+resilience4j.circuitbreaker.instances.bookingCircuitBreaker.minimumNumberOfCalls=10
+resilience4j.circuitbreaker.instances.bookingCircuitBreaker.failureRateThreshold=50
+resilience4j.circuitbreaker.instances.bookingCircuitBreaker.waitDurationInOpenState=20s
+resilience4j.circuitbreaker.instances.bookingCircuitBreaker.permittedNumberOfCallsInHalfOpenState=5
+resilience4j.circuitbreaker.instances.bookingCircuitBreaker.automaticTransitionFromOpenToHalfOpenEnabled=true
+resilience4j.circuitbreaker.instances.bookingCircuitBreaker.eventConsumerBufferSize=10
+
+
+spring.cloud.gateway.server.webflux.routes[2].id=payment-service-api
+spring.cloud.gateway.server.webflux.routes[2].uri=lb://PAYMENT-SERVICE
+spring.cloud.gateway.server.webflux.routes[2].predicates[0]=Path=/payment/**
+spring.cloud.gateway.server.webflux.routes[2].filters[0]=RewritePath=/payment/(?<segment>.*), /${segment}
+
+# Filter 2 → Circuit Breaker
+spring.cloud.gateway.server.webflux.routes[2].filters[1].name=CircuitBreaker
+spring.cloud.gateway.server.webflux.routes[2].filters[1].args.name=paymentCircuitBreaker
+spring.cloud.gateway.server.webflux.routes[2].filters[1].args.fallbackUri=forward:/fallback/payment
+# ===============================
+# RESILIENCE4J CIRCUIT BREAKER
+# ===============================
+resilience4j.circuitbreaker.instances.paymentCircuitBreaker.registerHealthIndicator=true
+resilience4j.circuitbreaker.instances.paymentCircuitBreaker.slidingWindowType=COUNT_BASED
+resilience4j.circuitbreaker.instances.paymentCircuitBreaker.slidingWindowSize=20
+resilience4j.circuitbreaker.instances.paymentCircuitBreaker.minimumNumberOfCalls=10
+resilience4j.circuitbreaker.instances.paymentCircuitBreaker.failureRateThreshold=50
+resilience4j.circuitbreaker.instances.paymentCircuitBreaker.waitDurationInOpenState=20s
+resilience4j.circuitbreaker.instances.paymentCircuitBreaker.permittedNumberOfCallsInHalfOpenState=5
+resilience4j.circuitbreaker.instances.paymentCircuitBreaker.automaticTransitionFromOpenToHalfOpenEnabled=true
+resilience4j.circuitbreaker.instances.paymentCircuitBreaker.eventConsumerBufferSize=10
+
+
+spring.cloud.gateway.server.webflux.routes[3].id=notification-service-api
+spring.cloud.gateway.server.webflux.routes[3].uri=lb://NOTIFICATION-SERVICE
+spring.cloud.gateway.server.webflux.routes[3].predicates[0]=Path=/notification/**
+spring.cloud.gateway.server.webflux.routes[3].filters[0]=RewritePath=/notification/(?<segment>.*), /${segment}
+
+
+spring.cloud.gateway.server.webflux.routes[4].id=auth-service-api
+spring.cloud.gateway.server.webflux.routes[4].uri=lb://AUTH-SERVICE
+spring.cloud.gateway.server.webflux.routes[4].predicates[0]=Path=/auth/**
+spring.cloud.gateway.server.webflux.routes[4].filters[0]=RewritePath=/auth/(?<segment>.*), /${segment}
+# Filter 2 → Circuit Breaker
+spring.cloud.gateway.server.webflux.routes[4].filters[1].name=CircuitBreaker
+spring.cloud.gateway.server.webflux.routes[4].filters[1].args.name=authCircuitBreaker
+spring.cloud.gateway.server.webflux.routes[4].filters[1].args.fallbackUri=forward:/fallback/auth
+# ===============================
+# RESILIENCE4J CIRCUIT BREAKER
+# ===============================
+resilience4j.circuitbreaker.instances.authCircuitBreaker.registerHealthIndicator=true
+resilience4j.circuitbreaker.instances.authCircuitBreaker.slidingWindowType=COUNT_BASED
+resilience4j.circuitbreaker.instances.authCircuitBreaker.slidingWindowSize=20
+resilience4j.circuitbreaker.instances.authCircuitBreaker.minimumNumberOfCalls=10
+resilience4j.circuitbreaker.instances.authCircuitBreaker.failureRateThreshold=50
+resilience4j.circuitbreaker.instances.authCircuitBreaker.waitDurationInOpenState=20s
+resilience4j.circuitbreaker.instances.authCircuitBreaker.permittedNumberOfCallsInHalfOpenState=5
+resilience4j.circuitbreaker.instances.authCircuitBreaker.automaticTransitionFromOpenToHalfOpenEnabled=true
+resilience4j.circuitbreaker.instances.authCircuitBreaker.eventConsumerBufferSize=10
+
+
+STEP-2: Create FallbackController.class
+========================================
+
+@RestController
+public class FallbackController {
+    @RequestMapping("/fallback/booking")
+    public Mono<ResponseEntity<Map<String,Object>>> bookingFallback()
+    {
+        Map<String,Object> response=new HashMap<>();
+        response.put("status",503);
+        response.put("message","Booking Service is currently unavailable. Please try again later.");
+        response.put("errorCode","BOOKING_SERVICE_DOWN");
+        response.put("timestamp", Instant.now());
+        return Mono.just(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(response));
+    }
+    @RequestMapping("/fallback/property")
+    public Mono<ResponseEntity<Map<String,Object>>> propertyFallback()
+    {
+        Map<String,Object> response=new HashMap<>();
+        response.put("status",503);
+        response.put("message","Property Service is currently unavailable. Please try again later.");
+        response.put("errorCode","PROPERTY_SERVICE_DOWN");
+        response.put("timestamp",Instant.now());
+        return Mono.just(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(response));
+    }
+    @RequestMapping("/fallback/auth")
+    public Mono<ResponseEntity<Map<String,Object>>> authFallback()
+    {
+        Map<String,Object> response=new HashMap<>();
+        response.put("status",503);
+        response.put("message","Auth Service is currently unavailable. Please try again later.");
+        response.put("errorCode","AUTH_SERVICE_DOWN");
+        response.put("timestamp",Instant.now());
+        return Mono.just(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(response));
+    }
+    @RequestMapping("/fallback/payment")
+    public Mono<ResponseEntity<Map<String,Object>>> paymentFallback()
+    {
+        Map<String,Object> response=new HashMap<>();
+        response.put("status",503);
+        response.put("message","Payment Service is currently unavailable. Please try again later.");
+        response.put("errorCode","PAYMENT_SERVICE_DOWN");
+        response.put("timestamp",Instant.now());
+        return Mono.just(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(response));
+    }
+
+}

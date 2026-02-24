@@ -1,0 +1,34 @@
+Security added in Services if service communicate using Feign Client
+=====================================================================
+inside config create one class
+==============================
+@Configuration
+public class FeignClientConfig {
+    @Bean
+    public RequestInterceptor requestInterceptor(){
+        return requestTemplate -> {
+            ServletRequestAttributes attributes=
+                    (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes != null)
+            {
+                String authHeader = attributes.getRequest().getHeader("Authorization");
+                if (authHeader != null)
+                {
+                    requestTemplate.header("Authorization",authHeader);
+                }
+            }
+        };
+    }
+}
+in client modify some changes
+=============================
+@FeignClient(
+        name = "HOTEL-SERVICE",
+        url = "http://localhost:8081/api/v1/hotel",
+        configuration = FeignClientConfig.class
+)
+public interface HotelClient {
+    @GetMapping("/{hotelId}/{roomId}")
+    public Room getRoom(@PathVariable Long hotelId, @PathVariable Long roomId);
+}
+

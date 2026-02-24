@@ -1,0 +1,43 @@
+Start Zookeeper Server
+=======================
+bin\windows\zookeeper-server-start.bat config\zookeeper.properties
+
+Start Kafka Server
+===================
+bin\windows\kafka-server-start.bat config\server.properties
+
+
+ Create a topic to store your events
+=====================================
+$ bin/kafka-topics.sh --create --topic quickstart-events --bootstrap-server localhost:9092
+
+ex: for windows
+====
+bin\windows\kafka-topics.bat --create --topic user-topic --bootstrap-server localhost:9092
+
+
+Write the event 
+============
+Produce new topic
+==================
+$ bin/kafka-console-producer.sh --topic quickstart-events --bootstrap-server localhost:9092
+>This is my first event
+>This is my second event
+
+ex:
+bin\windows\kafka-console-producer.bat --topic user-topic --bootstrap-server localhost:9092
+>This is my first event
+>This is my second event
+
+Read the events
+================
+$ bin/kafka-console-consumer.sh --topic quickstart-events --from-beginning --bootstrap-server localhost:9092
+This is my first event
+This is my second event
+
+ex:
+bin\windows\kafka-console-consumer.bat --topic user-topic --from-beginning --bootstrap-server localhost:9092
+
+
+
+
