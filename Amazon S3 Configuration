@@ -1,0 +1,132 @@
+For S3 Configuration
+=====================
+Step-1:
+=======
+<dependency>
+			<groupId>com.amazonaws</groupId>
+			<artifactId>aws-java-sdk-s3</artifactId>
+			<version>1.12.656</version> <!-- Use latest -->
+		</dependency>
+
+
+step-2:
+=======
+# Enable multipart file uploads
+spring.servlet.multipart.enabled=true
+# Set maximum file upload size (adjust as needed)
+spring.servlet.multipart.max-file-size=10MB
+spring.servlet.multipart.max-request-size=20MB
+
+aws.s3.bucket-name=nila-bucket-106
+cloud.aws.region.static=ap-south-1
+cloud.aws.credentials.access-key=your-access-key
+cloud.aws.credentials.secret-key=your-secret-key
+
+
+step-3
+=======
+@Configuration
+public class AmazonS3Config {
+    @Value("${cloud.aws.region.static}")
+    private String region;
+
+    @Value("${cloud.aws.credentials.access-key}")
+    private String accessKey;
+
+    @Value("${cloud.aws.credentials.secret-key}")
+    private String secretKey;
+
+    @Bean
+    public AmazonS3 amazonS3()
+    {
+        BasicAWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
+
+        return AmazonS3ClientBuilder.standard()
+                .withRegion(region)
+                .withCredentials(new AWSStaticCredentialsProvider(credentials))
+                .build();
+    }
+}
+
+
+step-4:
+=======
+@Service
+public class S3Service {
+
+    private AmazonS3 amazonS3;
+
+    public S3Service(AmazonS3 amazonS3) {
+        this.amazonS3 = amazonS3;
+    }
+
+    @Value("${aws.s3.bucket-name}")
+    private String bucketName;
+
+    public List<String> uploadFiles(MultipartFile[] files)
+    {
+        List<String> urls=new ArrayList<>();
+        for (MultipartFile file :files)
+        {
+            String fileName= UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
+            try {
+                ObjectMetadata metadata = new ObjectMetadata();
+                metadata.setContentLength(file.getSize());
+                amazonS3.putObject(bucketName,fileName,file.getInputStream(),metadata);
+                String url = amazonS3.getUrl(bucketName, fileName).toString();
+                urls.add(url);
+            } catch (IOException e) {
+                throw new RuntimeException("Error uploading file to S3", e);
+            }
+        }
+        return urls;
+    }
+}
+
+
+step-5:
+=======
+@RestController
+@RequestMapping("/api/v1/property")
+public class PropertyController {
+    private final PropertyService propertyService;
+
+    public PropertyController(PropertyService propertyService) {
+        this.propertyService = propertyService;
+    }
+   // Logger log=LoggerFactory.getLogger(PropertyController.class);
+    @PostMapping(
+            value = "/add-property",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE, // Ensures the endpoint accepts multipart/form-data
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<APIResponse> addProperty(
+            @RequestParam("property") String jsonProperty,  // Use RequestParam to get the property as a raw JSON string
+            @RequestParam("files")MultipartFile[] files     // Use RequestParam to handle files
+            )
+    {
+        // Parse the property JSON into PropertyDto
+        ObjectMapper objectMapper = new ObjectMapper();
+        PropertyDto dto=null;
+
+        dto = objectMapper.readValue(jsonProperty, PropertyDto.class);  // Convert JSON string to PropertyDto
+
+        // Process the property and files
+        PropertyDto property = propertyService.addProperty(dto, files);
+        APIResponse<PropertyDto> response = new APIResponse<>();
+        response.setMessage("Property Added");
+        response.setData(property);
+        response.setStatus(201);
+        return new ResponseEntity<>(response, HttpStatusCode.valueOf(response.getStatus()));
+    }
+
+
+step-6:
+=======
+In Service Layer
+-----------------
+  // Upload files to S3
+        List<String> fileUrls = s3Service.uploadFiles(files);
+
+        // Optionally store file URLs in database or DTO
+        dto.setImageUrls(fileUrls); // Ensure PropertyDto has `List<String> imageUrls;
