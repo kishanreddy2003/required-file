@@ -152,37 +152,93 @@ That is REAL production-level design.
 👉 Remove @CircuitBreaker annotation
 👉 Use Feign fallback instead
 
-Modify Feign:
+🔥 Why FallbackFactory is Better?
+Feature	fallback	fallbackFactory
+Gets actual exception	❌ No	✅ Yes
+Can log real error	❌ No	✅ Yes
+Enterprise usage	⚠ Medium	✅ High
+Debugging production issues	❌ Hard	✅ Easy
+✅ Step-by-Step Implementation
+🔹 1️⃣ Enable CircuitBreaker for Feign
+spring.cloud.openfeign.circuitbreaker.enabled=true
 
-@FeignClient(
-    name = "BOOKING-SERVICE",
-    url = "http://localhost:8082/api/v1/booking",
-    fallbackFactory = BookingClientFallbackFactory.class
+Without this → fallback won’t trigger.
+
+
+2️⃣ Update Feign Client
+--------------------
+@FeignClient(name = "PROPERTY-SERVICE",
+        url = "http://localhost:9091/api/v1/property",
+        configuration = FeignClientConfig .class,
+        fallbackFactory = PropertyServiceFallbackFactory.class
 )
+public interface PropertyClient {
+    @GetMapping("/property-id")
+    public APIResponse<PropertyDto> getPropertyById(@RequestParam long id);
 
-Create fallbackFactory:
+    @GetMapping("/room-available-room-id")
+    public APIResponse<List<RoomAvailability>> getTotalRoomsAvailable(@RequestParam long id);
 
+    @GetMapping("/room-id")
+    public APIResponse<Rooms> getRoomType(@RequestParam long id);
+
+}
+
+3️⃣ Create FallbackFactory Class (Enterprise Way)
+----------------------------------------------
 @Component
-public class BookingClientFallbackFactory implements FallbackFactory<BookingClient> {
-
+public class PropertyServiceFallbackFactory implements FallbackFactory<PropertyClient> {
     @Override
-    public BookingClient create(Throwable cause) {
-        return new BookingClient() {
+    public PropertyClient create(Throwable cause) {
+        return new PropertyClient() {
             @Override
-            public Bookings getBookingsById(long bookingId) {
-                Bookings b = new Bookings();
-                b.setTotalPrice(0L);
-                return b;
+            public APIResponse<PropertyDto> getPropertyById(long id) {
+                throw new ServiceUnavailableException("Property Service is down",cause);
             }
 
             @Override
-            public void bookings(Bookings bookings) {}
+            public APIResponse<List<RoomAvailability>> getTotalRoomsAvailable(long id) {
+                throw new ServiceUnavailableException(
+                        "Availability Service is down", cause);
+            }
+
+            @Override
+            public APIResponse<Rooms> getRoomType(long id) {
+                throw new ServiceUnavailableException(
+                        "Room Service is down", cause);
+            }
         };
     }
 }
 
-And REMOVE:
 
-@CircuitBreaker
+Create Custom Exception
+-----------------------
+public class ServiceUnavailableException extends RuntimeException {
+
+    public ServiceUnavailableException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}
+
+Handle Globally (Enterprise Pattern)
+------------------------------------
+@ControllerAdvice
+public class GlobalExceptionHandlerClass {
+    @ExceptionHandler(ServiceUnavailableException.class)
+    public ResponseEntity<Map<String,Object>> handleServiceDown(
+            ServiceUnavailableException ex) {
+
+       Map<String,Object> response=new HashMap<>();
+       response.put("status",503);
+       response.put("message",ex.getMessage());
+       response.put("errorCode","SERVICE_DOWN");
+       response.put("timestamp", Instant.now());
+
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(response);
+    }
+}
+
 
 
