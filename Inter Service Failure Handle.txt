@@ -32,18 +32,21 @@ STEP 1: Add Dependencies (Booking Service)
 
 Configure Circuit Breaker in application.yml (Booking Service)
 ===============================================================
-## ===============================
-## RESILIENCE4J CONFIGURATION
-## ===============================
-resilience4j.circuitbreaker.instances.propertyServiceCB.slidingWindowSize=10
-resilience4j.circuitbreaker.instances.propertyServiceCB.minimumNumberOfCalls=5
-resilience4j.circuitbreaker.instances.propertyServiceCB.permittedNumberOfCallsInHalfOpenState=3
-resilience4j.circuitbreaker.instances.propertyServiceCB.waitDurationInOpenState=10s
+# ===============================
+# RESILIENCE4J CIRCUIT BREAKER
+# ===============================
+resilience4j.circuitbreaker.instances.propertyServiceCB.registerHealthIndicator=true
+resilience4j.circuitbreaker.instances.propertyServiceCB.slidingWindowType=COUNT_BASED
+resilience4j.circuitbreaker.instances.propertyServiceCB.slidingWindowSize=20
+resilience4j.circuitbreaker.instances.propertyServiceCB.minimumNumberOfCalls=10
 resilience4j.circuitbreaker.instances.propertyServiceCB.failureRateThreshold=50
+resilience4j.circuitbreaker.instances.propertyServiceCB.waitDurationInOpenState=20s
+resilience4j.circuitbreaker.instances.propertyServiceCB.permittedNumberOfCallsInHalfOpenState=5
+resilience4j.circuitbreaker.instances.propertyServiceCB.automaticTransitionFromOpenToHalfOpenEnabled=true
+resilience4j.circuitbreaker.instances.propertyServiceCB.eventConsumerBufferSize=10
 
-#This for Actuator
-#===================
-management.endpoints.web.exposure.include=health,info
+
+management.endpoints.web.exposure.include=health,metrics,circuitbreakers
 management.endpoint.health.show-details=always
 
 or
