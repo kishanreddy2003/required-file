@@ -1,0 +1,295 @@
+If You ARE Using Docker
+========================
+cmd/gitbash
+
+docker ps
+you see:
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+
+docker run -d --name redis-container -p 6379:6379 redis
+you see:
+806a6b1e7ba65b7ceefdc5a46920804873bf134f3cf03c5f68c05c98ac259371
+
+docker ps
+you see:
+CONTAINER ID   IMAGE     COMMAND                  CREATED          STATUS         PORTS                                         NAMES
+806a6b1e7ba6   redis     "docker-entrypoint.s…"   10 seconds ago   Up 9 seconds   0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp   redis-container
+
+docker exec -it redis-container redis-cli
+
+ ping
+
+you see:
+PONG
+
+✅ Redis is working.
+
+
+
+
+Right now, your PropertyService is doing DB-heavy reads, especially:
+
+searchProperty()
+
+findPropertyById()
+
+getTotalRoomsAvailable()
+
+getRoomById()
+
+These are perfect candidates for Redis caching.
+
+✅ WHERE You Should Implement Redis
+🔥 Best Places to Cache (Read-heavy APIs)
+Method	Should Cache?	Why
+findPropertyById()	✅ YES	Frequently accessed
+searchProperty()	✅ YES	Expensive DB query
+getTotalRoomsAvailable()	✅ YES	Date-based queries
+getRoomById()	✅ YES	Repeated access
+addProperty()	❌ NO	Write operation
+
+🚀 PRODUCTION LEVEL REDIS IMPLEMENTATION (Step by Step)
+✅ STEP 1: Add Redis Dependency
+
+In property-service pom.xml:
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-redis</artifactId>
+</dependency>
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-cache</artifactId>
+</dependency>
+
+✅ STEP 2: Configure Redis (application.yml)
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 6000
+
+  cache:
+    type: redis
+
+in property file
+----------------
+
+# ===============================
+# REDIS CONFIGURATION
+# ===============================
+spring.data.redis.host=localhost
+spring.data.redis.port=6379
+spring.data.redis.timeout=6000
+
+# ===============================
+# CACHE CONFIGURATION
+# ===============================
+spring.cache.type=redis
+
+👉 In production, use:
+
+AWS ElastiCache
+
+Azure Redis
+
+Docker Redis container
+
+
+✅ STEP 3: Enable Caching
+
+Create config class:
+
+@Configuration
+@EnableCaching
+public class RedisConfig {
+}
+
+
+✅ STEP 4: Add Cache Annotations (VERY IMPORTANT)
+✅ 1️⃣ Cache Property By ID
+@Cacheable(value = "property", key = "#id")
+public APIResponse<PropertyDto> findPropertyById(long id) {
+
+Now:
+
+First request → DB hit
+
+Next requests → Redis hit
+
+✅ 2️⃣ Cache Search API
+@Cacheable(value = "propertySearch", key = "#name + '-' + #date")
+public APIResponse searchProperty(String name, LocalDate date) {
+✅ 3️⃣ Cache Room Availability
+@Cacheable(value = "roomAvailability", key = "#id")
+public List<RoomAvailability> getTotalRoomsAvailable(long id) {
+✅ 4️⃣ Cache Room By ID
+@Cacheable(value = "room", key = "#id")
+public Rooms getRoomById(long id) {
+✅ STEP 5: VERY IMPORTANT — Cache Eviction on Write
+
+When property is added or updated, you MUST clear cache.
+
+Inside addProperty():
+
+@CacheEvict(value = {"property", "propertySearch"}, allEntries = true)
+public PropertyDto addProperty(PropertyDto dto, MultipartFile[] files)
+
+Why?
+
+Because:
+
+New property added
+
+Old search cache becomes stale
+
+
+🔥 PRODUCTION LEVEL BEST PRACTICES
+✅ 1️⃣ Set TTL (Time To Live)
+
+Add custom Redis config:
+
+@Bean
+public RedisCacheConfiguration cacheConfiguration() {
+    return RedisCacheConfiguration.defaultCacheConfig()
+            .entryTtl(Duration.ofMinutes(10))
+            .disableCachingNullValues();
+}
+
+Production Suggestion:
+
+Property cache → 30 mins
+
+Availability → 5 mins
+
+Search → 10 mins
+
+✅ 2️⃣ Use JSON Serializer (Important)
+@Bean
+public RedisCacheConfiguration cacheConfiguration() {
+    return RedisCacheConfiguration.defaultCacheConfig()
+            .serializeValuesWith(
+                RedisSerializationContext.SerializationPair.fromSerializer(
+                    new GenericJackson2JsonRedisSerializer()
+                )
+            );
+}
+
+Without this → you'll get serialization errors.
+
+✅ 3️⃣ Do NOT Cache These
+
+❌ addProperty()
+❌ Payment APIs
+❌ Booking confirmation APIs
+❌ Authentication
+
+Never cache transactional operations.
+
+🏗️ ARCHITECTURE IN YOUR MICROSERVICE
+
+Since you're using:
+
+API Gateway
+
+Auth Service
+
+Property Service
+
+Booking Service
+
+👉 Redis should be:
+
+Option 1 (Recommended)
+
+Each service has its own Redis instance.
+
+Option 2
+
+Shared Redis cluster (with key prefixes).
+
+Example:
+
+property::1
+room::5
+availability::3
+🔥 PRODUCTION FLOW AFTER REDIS
+
+Request → API Gateway → Property Service
+↓
+Check Redis
+↓
+If present → Return
+Else → DB → Save to Redis → Return
+
+💎 BONUS: Avoid Cache Stampede
+
+For high traffic production systems:
+
+Use @Cacheable(sync = true)
+
+Or implement distributed lock
+
+Example:
+
+@Cacheable(value = "property", key = "#id", sync = true)
+⚠️ VERY IMPORTANT FOR YOUR PROJECT
+
+Since you're also using:
+
+S3Service
+
+EmailProducer
+
+RoomAvailability
+
+👉 DO NOT cache entities directly.
+
+Always cache:
+
+DTOs
+
+APIResponse
+
+Because JPA entities can cause LazyInitializationException.
+
+🎯 FINAL ANSWER FOR YOU
+In your project, implement Redis in:
+
+✔ findPropertyById()
+✔ searchProperty()
+✔ getTotalRoomsAvailable()
+✔ getRoomById()
+✔ Add @CacheEvict in addProperty()
+
+
+If You ARE Using Docker
+========================
+cmd/gitbash
+
+docker ps
+you see:
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+
+docker run -d --name redis-container -p 6379:6379 redis
+you see:
+806a6b1e7ba65b7ceefdc5a46920804873bf134f3cf03c5f68c05c98ac259371
+
+docker ps
+you see:
+CONTAINER ID   IMAGE     COMMAND                  CREATED          STATUS         PORTS                                         NAMES
+806a6b1e7ba6   redis     "docker-entrypoint.s…"   10 seconds ago   Up 9 seconds   0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp   redis-container
+
+docker exec -it redis-container redis-cli
+
+ ping
+
+you see:
+PONG
+
+✅ Redis is working.
+
+
+
