@@ -32,6 +32,9 @@ STEP 1: Add Dependencies (Booking Service)
 
 Configure Circuit Breaker in application.yml (Booking Service)
 ===============================================================
+spring.cloud.openfeign.circuitbreaker.enabled=true
+management.endpoints.web.exposure.include=health,metrics,circuitbreakers
+management.endpoint.health.show-details=always
 # ===============================
 # RESILIENCE4J CIRCUIT BREAKER
 # ===============================
@@ -46,8 +49,6 @@ resilience4j.circuitbreaker.instances.propertyServiceCB.automaticTransitionFromO
 resilience4j.circuitbreaker.instances.propertyServiceCB.eventConsumerBufferSize=10
 
 
-management.endpoints.web.exposure.include=health,metrics,circuitbreakers
-management.endpoint.health.show-details=always
 
 or
 
